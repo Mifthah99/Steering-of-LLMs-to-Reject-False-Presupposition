@@ -1,0 +1,21 @@
+# Security
+.env
+
+# Python / environment
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Lock files created by FileLock during concurrent GPU runs
+*.lock
+
+# Large generated artifacts
+*.pt
+vectors/
+generation_results/*.csv
+data/temp_shard_gpu_*.csv
+.cache/
+
+# Pre-refactor scripts (kept locally only - they contain old hardcoded paths)
+_old_scripts/

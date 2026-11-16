@@ -1,0 +1,15 @@
+# --- Core deep learning & serving ---
+torch~=2.11.0
+vllm~=0.25.0            # snippets (step 2) and judge; needs a GPU with compute capability >= 7.0
+
+# --- Hugging Face stack ---
+transformers~=5.13.0
+datasets~=5.0.0         # WikiText-2 for step 5
+huggingface_hub~=1.23.0
+lm_eval~=0.4.13         # MMLU (steering tax)
+
+# --- Data & utilities ---
+numpy~=2.5.0
+pandas~=3.1.0
+tqdm~=4.67.0
+filelock~=4.2.0
