@@ -50,6 +50,8 @@ All thesis settings live in [`src/config.py`](src/config.py). That covers the gr
 
 If a run crashes, start the same command again. Rows that are already in the output file are skipped.
 
+**Shared servers.** Give a script several GPUs (`CUDA_VISIBLE_DEVICES=0,2`) and the model is spread over them. The vLLM steps (snippets, judge) only take the memory that is actually free, so they still start when other people's jobs share the cards. Run `export CUDA_DEVICE_ORDER=PCI_BUS_ID` first. Otherwise CUDA numbers the GPUs fastest-first, and the numbers will not match `nvidia-smi` on servers with mixed cards.
+
 ## Data
 
 | File | Contents |

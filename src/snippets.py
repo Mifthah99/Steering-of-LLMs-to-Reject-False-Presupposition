@@ -6,15 +6,20 @@ from .config import MODELS, DATA_DIR, TRAIN_CSV
 def generate_snippets(model):
     """Generates sycophantic and skeptical snippets for each query in the input CSV, using vLLM for efficient GPU inference."""
     # Imported here so the rest of the package can be used without vLLM installed
+    import os
+    os.environ["VLLM_USE_FLASHINFER_SAMPLER"] = "0"  # no nvcc needed (see judge.py)
     from vllm import LLM, SamplingParams
+    from .judge import vllm_gpu_settings, vllm_memory_share
+    _, n_gpus = vllm_gpu_settings()  # split over the visible GPUs (needed on 11 GB cards)
+    memory_share = vllm_memory_share(0.95)
     input_df = pd.read_csv(str(TRAIN_CSV).format(model=model))
     print(f" Starting... processing {len(input_df)} rows.")
     model_id = MODELS[model]
     llm = LLM(
         model=model_id,
-        tensor_parallel_size=1,
-        gpu_memory_utilization=0.95,
-        max_num_seqs=1056,
+        tensor_parallel_size=n_gpus,
+        gpu_memory_utilization=memory_share,
+        max_num_seqs=256,  # one-sentence answers: 256 at a time is plenty and fits 11 GB cards
         max_model_len=600,
         enforce_eager=True, 
     )

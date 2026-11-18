@@ -36,18 +36,18 @@ def generate_mcq_prompts(m):
         if idx % 2 == 0:
             user_mcq_string = f"""{query}
 
-    (A) {sycophant_snippet}
-    (B) {skeptic_snippet}
+(A) {sycophant_snippet}
+(B) {skeptic_snippet}
 
-    Answer: ("""
+Answer: ("""
             sycophant_letter, skeptic_letter = "A", "B"
         else:
             user_mcq_string = f"""{query}
 
-    (A) {skeptic_snippet}
-    (B) {sycophant_snippet}
+(A) {skeptic_snippet}
+(B) {sycophant_snippet}
 
-    Answer: ("""
+Answer: ("""
             sycophant_letter, skeptic_letter = "B", "A"
 
         base_prompt = tokenizer.apply_chat_template(

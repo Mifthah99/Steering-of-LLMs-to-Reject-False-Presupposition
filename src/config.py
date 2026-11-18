@@ -3,7 +3,7 @@ from pathlib import Path
 
 # Read the Hugging Face token from the environment only (never hardcode it).
 #   export HF_TOKEN="hf_..."
-HF_TOKEN = os.environ.get("HF_TOKEN")
+HF_TOKEN = os.environ.get("HF_TOKEN")  # transformers / vLLM pick this up automatically
 
 # Model Definitions
 MODELS = {

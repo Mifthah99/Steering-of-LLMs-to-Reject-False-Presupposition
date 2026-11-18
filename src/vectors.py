@@ -3,7 +3,6 @@ import os
 import torch
 import pandas as pd
 from transformers import AutoTokenizer, AutoModelForCausalLM
-from huggingface_hub import login
 from .config import MODELS, DATA_DIR, VECTOR_DIR as VECTOR_ROOT
 
 
@@ -23,11 +22,6 @@ def generate_steering_vector(model):
 
     if torch.cuda.is_available():
         print(f"GPU: {torch.cuda.get_device_name(0)}")
-    # hf login for private model access
-    hf_token = os.environ.get("HF_TOKEN")
-    if hf_token:
-        login(token=hf_token)
-
     print(f"Loading {model_id}...")
     tokenizer = AutoTokenizer.from_pretrained(model_id)
     if tokenizer.pad_token is None:
@@ -66,7 +60,8 @@ def generate_steering_vector(model):
             hidden = output[0] if isinstance(output, tuple) else output
 
             # Index of final non-padding token
-            lengths = current_attention_mask.sum(dim=1) - 1
+            # (.to(...) because with several GPUs each layer can live on a different card)
+            lengths = (current_attention_mask.sum(dim=1) - 1).to(hidden.device)
 
             batch_indices = torch.arange(
                 hidden.size(0),
@@ -77,7 +72,7 @@ def generate_steering_vector(model):
                 batch_indices,
                 lengths,
                 :
-            ].detach()
+            ].detach().to(model.device)
 
         return hook
 

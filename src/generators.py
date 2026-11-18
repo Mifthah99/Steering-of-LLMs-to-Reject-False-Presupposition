@@ -12,9 +12,8 @@ import pandas as pd
 import torch
 from tqdm import tqdm
 from transformers import AutoModelForCausalLM, AutoTokenizer
-from huggingface_hub import login
 
-from .config import MODELS, HF_TOKEN, SYS_PROMPT, MAX_NEW_TOKENS, REPETITION_PENALTY, BATCH_SIZE
+from .config import MODELS, SYS_PROMPT, MAX_NEW_TOKENS, REPETITION_PENALTY, BATCH_SIZE
 from .io_utils import append_results_to_csv, get_missing_rows
 from .steering import load_vector_bank, register_steering_hooks
 
@@ -22,9 +21,16 @@ from .steering import load_vector_bank, register_steering_hooks
 META_COLS = ["claim_id", "claim", "claim_veracity", "presupposition_level", "query_with_presupposition"]
 
 
+def free_memory_map(headroom_gb=4):
+    """How much of each GPU the weights may fill: what is free right now (other jobs may share the
+    cards) minus some room for activations and the KV cache during generation."""
+    if not torch.cuda.is_available():
+        return None
+    return {i: f"{max(0, torch.cuda.mem_get_info(i)[0] / 1024**3 - headroom_gb):.0f}GiB"
+            for i in range(torch.cuda.device_count())}
+
+
 def load_model(model_key):
-    if HF_TOKEN:
-        login(token=HF_TOKEN, add_to_git_credential=False)
     model_id = MODELS[model_key]
 
     tokenizer = AutoTokenizer.from_pretrained(model_id)
@@ -38,7 +44,7 @@ def load_model(model_key):
     dtype = torch.bfloat16 if torch.cuda.is_available() and torch.cuda.is_bf16_supported() else torch.float16
     print(f"Loading {model_id} ({dtype})...")
     model = AutoModelForCausalLM.from_pretrained(
-        model_id, device_map="auto", dtype=dtype, attn_implementation="sdpa"
+        model_id, device_map="auto", max_memory=free_memory_map(), dtype=dtype, attn_implementation="sdpa"
     )
     model.eval()
     return model, tokenizer

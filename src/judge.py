@@ -9,7 +9,7 @@ import re
 import os
 import pandas as pd
 
-from .config import JUDGE_MODEL_ID, HF_TOKEN
+from .config import JUDGE_MODEL_ID
 from .io_utils import append_results_to_csv, dedupe_csv, file_has_data, read_csv_locked
 
 # THINKING_TOKEN_BUDGET is the max number of tokens the model may spend "thinking" before it's forced to close </think> and give the final verdict.
@@ -21,7 +21,39 @@ MAX_TOKENS = THINKING_TOKEN_BUDGET + ANSWER_HEADROOM
 RETRY_MAX_TOKENS = RETRY_THINKING_TOKEN_BUDGET + ANSWER_HEADROOM
 
 JUDGE_BATCH_SIZE = 1024  # rows per save to disk
-TENSOR_PARALLEL_SIZE = 1  # GPUs to split the vLLM judge over (must divide the model's attention heads)
+
+
+def vllm_memory_share(wanted):
+    """Share of each GPU that vLLM may use.
+
+    vLLM refuses to start if `wanted` x total memory is not free. On shared servers other
+    people's jobs often hold part of the card, so take whatever is free (minus 1 GB margin).
+    """
+    import torch
+    free = min(torch.cuda.mem_get_info(i)[0] / torch.cuda.mem_get_info(i)[1]
+               for i in range(torch.cuda.device_count()))
+    share = min(wanted, round(free - 1024**3 / torch.cuda.mem_get_info(0)[1], 2))
+    if share < wanted:
+        print(f" GPUs are partly in use by other jobs - vLLM gets {share:.0%} of each card instead of {wanted:.0%}.")
+    return share
+
+
+def vllm_gpu_settings():
+    """Pick the AWQ kernel and how many GPUs to split the judge over.
+
+    - awq_marlin needs compute capability >= 8.0 (A6000, RTX 6000 Ada, H100);
+      older cards such as the RTX 2080 Ti (7.5) need the plain awq kernel.
+    - The judge is split over all visible GPUs (a power of two, so it divides
+      the attention heads): 1 big GPU, or e.g. 4 x 11 GB cards.
+    """
+    import torch
+    major, _ = torch.cuda.get_device_capability(0)
+    quantization = "awq_marlin" if major >= 8 else "awq"
+    n_gpus = torch.cuda.device_count()
+    tensor_parallel_size = 1
+    while tensor_parallel_size * 2 <= n_gpus:
+        tensor_parallel_size *= 2
+    return quantization, tensor_parallel_size
 
 # A row is identified by these columns (layers/multiplier only exist for steered runs)
 KEY_COLS = ["query_with_presupposition", "claim_id", "model_response", "layers", "multiplier"]
@@ -86,11 +118,10 @@ def _judge_worker(input_csv, output_csv, shard=None):
     os.environ["VLLM_CONFIGURE_LOGGING"] = "0"
     # Set the logging level to only show ERROR messages
     os.environ["VLLM_LOGGING_LEVEL"] = "ERROR"
+    # FlashInfer's sampler compiles CUDA code at start-up and needs a full CUDA toolkit (nvcc);
+    # the plain PyTorch sampler gives the same greedy output without it
+    os.environ["VLLM_USE_FLASHINFER_SAMPLER"] = "0"
     from vllm import LLM, SamplingParams
-    from huggingface_hub import login as hf_login
-
-    if HF_TOKEN:
-        hf_login(token=HF_TOKEN)
 
     df, keys = load_pending_rows(input_csv, output_csv, shard)
     if df.empty:
@@ -98,14 +129,16 @@ def _judge_worker(input_csv, output_csv, shard=None):
         return
     print(f" [Judge] Found {len(df)} new rows to evaluate.")
 
-    print(" [Judge] Initializing evaluator model...")
+    quantization, tensor_parallel_size = vllm_gpu_settings()
+    memory_share = vllm_memory_share(0.90)
+    print(f" [Judge] Initializing evaluator model ({quantization}, {tensor_parallel_size} GPU(s))...")
     llm = LLM(
         model=JUDGE_MODEL_ID,
-        quantization="awq_marlin",
-        tensor_parallel_size=TENSOR_PARALLEL_SIZE,
+        quantization=quantization,
+        tensor_parallel_size=tensor_parallel_size,
         enable_prefix_caching=True,
-        max_num_seqs=100,
-        gpu_memory_utilization=0.90,
+        max_num_seqs=max(8, int(100 * memory_share / 0.90)),  # fewer parallel prompts when GPUs are shared
+        gpu_memory_utilization=memory_share,
         max_model_len=RETRY_MAX_TOKENS + 1000,  # + headroom for the prompt itself; raise if you hit "prompt too long" errors
         reasoning_parser="qwen3",
     )
@@ -147,10 +180,6 @@ def _judge_worker_pytorch(input_csv, output_csv, shard=None):
     """
     import torch
     from transformers import AutoModelForCausalLM, AutoTokenizer
-    from huggingface_hub import login as hf_login
-
-    if HF_TOKEN:
-        hf_login(token=HF_TOKEN)
 
     df, keys = load_pending_rows(input_csv, output_csv, shard)
     if df.empty:

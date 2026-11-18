@@ -112,6 +112,9 @@ def select_rows(df, veracities, max_claims_other=20):
     'false' and 'true' rows are always kept in full. For 'fabricated' and 'mixture'
     only the first `max_claims_other` claims (all their presupposition levels) are kept.
     """
+    df = df.copy()
+    # pandas reads a column holding only "false"/"true" as booleans - normalise to strings
+    df["claim_veracity"] = df["claim_veracity"].astype(str).str.lower()
     parts = []
     for v in veracities:
         part = df[df["claim_veracity"] == v]
