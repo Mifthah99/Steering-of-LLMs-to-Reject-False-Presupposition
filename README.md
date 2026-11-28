@@ -21,7 +21,8 @@ Notes
 
 - Settings such as model choice, paths and GPU IDs are set inside each script; edit them before running.
 - Set your Hugging Face token in the `HF_TOKEN` environment variable. No tokens are stored here.
-- Input data and generated files are not included on this branch.
+- Input data is not included. Download `queries.csv` through the [UPHILL repository](https://github.com/navreeetkaur/UPHILL). `00_prepare_data.py` on the `main` branch rebuilds the thesis data files from it.
+- Generated files are not included on this branch.
 
 ## Dataset and citation
 

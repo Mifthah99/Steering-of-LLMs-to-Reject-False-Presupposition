@@ -19,3 +19,6 @@ data/temp_shard_gpu_*.csv
 
 # Pre-refactor scripts (kept locally only - they contain old hardcoded paths)
 _old_scripts/
+
+# Dataset files: rebuilt locally, never committed (see README -> Data)
+data/*.csv
