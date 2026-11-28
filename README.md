@@ -13,6 +13,8 @@ pip install -r requirements.txt
 export HF_TOKEN="your_huggingface_token"   # Llama 3.1 is a gated model
 ```
 
+Then get the dataset and rebuild the data files (see [Data](#data)). The steps below need them.
+
 ## Running the experiments
 
 There is one script per step of the thesis. Each one only needs the model name, and its defaults are the settings used in the thesis.
@@ -54,6 +56,17 @@ If a run crashes, start the same command again. Rows that are already in the out
 
 ## Data
 
+The dataset is **not included** in this repository. Get it from its authors:
+
+1. Open the [UPHILL repository](https://github.com/navreeetkaur/UPHILL), follow its link to the data (a Google Drive folder) and download `queries.csv`.
+2. Rebuild the files used in the thesis:
+
+```bash
+python 00_prepare_data.py --source path/to/queries.csv
+```
+
+`data/ids/` lists, in order, the rows each file used: `claim_id`, `presupposition_level` and a checksum of the query text. The script writes nothing if a row is missing or its text has changed. The thesis used 9,720 of the 9,725 rows. Checked against a copy downloaded in June 2026, the rebuilt files match the thesis files on all UPHILL columns.
+
 | File | Contents |
 |---|---|
 | `data/queries.csv` | UPHILL: each claim at five presupposition levels |
@@ -61,9 +74,14 @@ If a run crashes, start the same command again. Rows that are already in the out
 | `data/val_false_{model}.csv` | Other accepted false-claim prompts, used for the grid search |
 | `data/val_true.csv` | 80 true-claim prompts (16 claims × 5 levels), used for the grid search |
 
+- The rebuilt `train_` and `val_` files contain the UPHILL columns only. The baseline answers and judge outputs from the thesis are not included; the pipeline does not need them.
+- `data/prompts_{model}.csv` is produced by step 2. `data/ids/prompts_{model}.csv` records which queries the thesis prompts used. The prompts also contain model-generated sentences, so newly built ones may differ.
+
+**Underlying source material** (not needed to run this code): UPHILL is built on [PubHealth](https://arxiv.org/abs/2010.09926), described and linked in its paper, and on the [Monant Medical Misinformation dataset](https://zenodo.org/records/5996864), for which you have to request access.
+
 ## Dataset and citation
 
-This work uses the **UPHILL** benchmark ([code and data](https://github.com/navreeetkaur/UPHILL), [paper](https://aclanthology.org/2024.findings-acl.850/)) by Navreet Kaur, Monojit Choudhury and Danish Pruthi. The files in `data/` are derived from it.
+This work uses the **UPHILL** benchmark ([code and data](https://github.com/navreeetkaur/UPHILL), [paper](https://aclanthology.org/2024.findings-acl.850/)) by Navreet Kaur, Monojit Choudhury and Danish Pruthi. The data itself is not redistributed here; see [Data](#data).
 
 UPHILL builds on the [PubHealth](https://arxiv.org/abs/2010.09926) and [Monant Medical Misinformation](https://dl.acm.org/doi/abs/10.1145/3477495.3531726) datasets. If you use this code or data, please cite all three, as the UPHILL authors request:
 
@@ -113,6 +131,7 @@ The datasets remain subject to their creators' terms; this repository's `LICENSE
 ## Code layout
 
 ```
+00_prepare_data.py  rebuilds data/ from your copy of UPHILL
 01_… to 05_….py     one script per step
 src/
   config.py       models, paths and every thesis setting
